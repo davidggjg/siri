@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Groq Voice Assistant</string>
+    <string name="press_to_talk">לחץ ודבר</string>
+    <string name="recording">מקליט...</string>
+    <string name="processing">מעבד...</string>
+</resources>
