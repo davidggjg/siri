@@ -2,8 +2,7 @@ package com.groqvoice.assistant.service
 
 import android.app.*
 import android.content.Intent
-import android.os.IBinder
-import android.os.PowerManager
+import android.os.*
 import androidx.core.app.NotificationCompat
 import com.groqvoice.assistant.api.GroqApiClient
 import com.groqvoice.assistant.audio.AudioRecorder
@@ -27,6 +26,10 @@ class VoiceService : Service() {
         const val CHANNEL_ID = "KaiChannel"
         const val NOTIFICATION_ID = 1
         var isRunning = false
+
+        // Actions מה-Activity
+        const val ACTION_PAUSE = "pause_wake_word"
+        const val ACTION_RESUME = "resume_wake_word"
     }
 
     override fun onCreate() {
@@ -39,12 +42,8 @@ class VoiceService : Service() {
             if (!isProcessing) onWakeWordDetected()
         }
 
-        // Wake lock - מונע מהטלפון לישון
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "KaiAssistant::WakeLock"
-        )
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Kai::WakeLock")
         wakeLock?.acquire()
 
         createNotificationChannel()
@@ -52,14 +51,20 @@ class VoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification("🎙 קאי מאזין..."))
-        wakeWordDetector.start()
+        when (intent?.action) {
+            ACTION_PAUSE -> wakeWordDetector.pause()
+            ACTION_RESUME -> wakeWordDetector.resume()
+            else -> {
+                startForeground(NOTIFICATION_ID, buildNotification("🎙 קאי מאזין..."))
+                wakeWordDetector.start()
+            }
+        }
         return START_STICKY
     }
 
     private fun onWakeWordDetected() {
         isProcessing = true
-        updateNotification("💬 קאי שומע אותך...")
+        updateNotification("💬 קאי שומע...")
         ttsManager.speak("כן?") {
             recordAndProcess()
         }
@@ -79,53 +84,48 @@ class VoiceService : Service() {
 
                 if (transcription.isBlank()) {
                     ttsManager.speak("לא שמעתי, נסה שוב")
-                    isProcessing = false
-                    updateNotification("🎙 קאי מאזין...")
+                    finishProcessing()
                     return@launch
                 }
 
                 val commandResult = commandExecutor.execute(transcription)
                 if (commandResult != "none") {
-                    ttsManager.speak(commandResult)
-                    isProcessing = false
-                    updateNotification("🎙 קאי מאזין...")
+                    ttsManager.speak(commandResult) { finishProcessing() }
                     return@launch
                 }
 
-                val systemPrompt = """
-                    אתה קאי - עוזר קולי חכם בעברית.
-                    ענה תמיד בעברית, בקצרה ובבהירות.
-                    אתה ידידותי, חכם ועוזר.
-                """.trimIndent()
-
-                val response = groqClient.chat(transcription, systemPrompt = systemPrompt)
-                ttsManager.speak(response) {
-                    isProcessing = false
-                    updateNotification("🎙 קאי מאזין...")
-                }
+                val response = groqClient.chat(
+                    transcription,
+                    systemPrompt = "אתה קאי - עוזר קולי חכם. ענה תמיד בעברית, קצר וברור."
+                )
+                ttsManager.speak(response) { finishProcessing() }
 
             } catch (e: Exception) {
-                ttsManager.speak("אירעה שגיאה")
-                isProcessing = false
-                updateNotification("🎙 קאי מאזין...")
+                ttsManager.speak("אירעה שגיאה") { finishProcessing() }
             }
         }
+    }
+
+    private fun finishProcessing() {
+        isProcessing = false
+        updateNotification("🎙 קאי מאזין...")
+        wakeWordDetector.resume()
     }
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID, "קאי - עוזר קולי",
             NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            setSound(null, null)
-            description = "קאי פעיל ברקע"
-        }
+        ).apply { setSound(null, null) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(text: String): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val pi = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("קאי")
             .setContentText(text)
@@ -150,9 +150,7 @@ class VoiceService : Service() {
         audioRecorder.cleanup()
         ttsManager.shutdown()
         serviceScope.cancel()
-
         // הפעל מחדש אוטומטית
-        val restart = Intent(this, VoiceService::class.java)
-        startService(restart)
+        startService(Intent(this, VoiceService::class.java))
     }
 }
