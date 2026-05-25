@@ -1,6 +1,7 @@
 package com.groqvoice.assistant.ui
 
 import android.app.Application
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -9,22 +10,20 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.groqvoice.assistant.api.GroqApiClient
 import com.groqvoice.assistant.audio.AudioRecorder
+import com.groqvoice.assistant.service.VoiceService
 import com.groqvoice.assistant.tts.TtsManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 enum class AssistantState {
-    IDLE,
-    RECORDING,
-    PROCESSING,
-    SPEAKING,
-    ERROR
+    IDLE, RECORDING, PROCESSING, SPEAKING, ERROR
 }
 
 data class ChatMessage(
-    val role: String, // "user" or "assistant"
+    val role: String,
     val content: String
 )
 
@@ -37,7 +36,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableLiveData(AssistantState.IDLE)
     val state: LiveData<AssistantState> = _state
 
-    private val _statusText = MutableLiveData("לחץ על הכפתור ודבר")
+    private val _statusText = MutableLiveData("אמור 'קאי' או לחץ")
     val statusText: LiveData<String> = _statusText
 
     private val _errorText = MutableLiveData<String?>(null)
@@ -52,6 +51,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── הקלטה ──────────────────────────────────────────────────────────────
     fun startRecording() {
         if (_state.value == AssistantState.RECORDING) return
+
+        // השהה את קאי בזמן הקלטה ידנית
+        val pauseIntent = Intent(getApplication(), VoiceService::class.java).apply {
+            action = VoiceService.ACTION_PAUSE
+        }
+        getApplication<Application>().startService(pauseIntent)
+
         ttsManager.stop()
         _state.value = AssistantState.RECORDING
         _statusText.value = "מקליט... דבר עכשיו"
@@ -60,8 +66,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopRecordingAndProcess() {
         if (_state.value != AssistantState.RECORDING) return
+
         val audioFile = audioRecorder.stopRecording() ?: run {
             setError("שגיאה בהקלטה")
+            resumeWakeWord()
             return
         }
         currentAudioFile = audioFile
@@ -71,11 +79,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── עיבוד אודיו → STT → LLM → TTS ─────────────────────────────────────
     private fun processAudio(audioFile: File) {
         _state.value = AssistantState.PROCESSING
-        _statusText.value = "מעבד..."
+        _statusText.value = "קאי חושב..."
 
         viewModelScope.launch {
             try {
-                // 1. STT - Whisper
+                // 1. STT
                 _statusText.value = "ממיר דיבור לטקסט..."
                 val transcription = withContext(Dispatchers.IO) {
                     groqClient.transcribeAudio(audioFile)
@@ -83,20 +91,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (transcription.isBlank()) {
                     setError("לא הצלחתי לשמוע. נסה שוב.")
+                    resumeWakeWord()
                     return@launch
                 }
 
                 addMessage("user", transcription)
 
-                // 2. LLM - LLaMA
-                _statusText.value = "חושב..."
+                // 2. LLM
+                _statusText.value = "קאי חושב..."
                 val response = withContext(Dispatchers.IO) {
-                    groqClient.chat(transcription, conversationHistory)
+                    groqClient.chat(
+                        transcription,
+                        conversationHistory,
+                        systemPrompt = "אתה קאי - עוזר קולי חכם. ענה תמיד בעברית, קצר וברור."
+                    )
                 }
 
                 addMessage("assistant", response)
 
-                // שמור היסטוריה (מקסימום 10 הודעות אחרונות)
+                // שמור היסטוריה
                 conversationHistory.add(Pair("user", transcription))
                 conversationHistory.add(Pair("assistant", response))
                 if (conversationHistory.size > 20) {
@@ -105,19 +118,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 // 3. TTS
                 _state.value = AssistantState.SPEAKING
-                _statusText.value = "מדבר..."
+                _statusText.value = "קאי מדבר..."
                 ttsManager.speak(response) {
                     _state.postValue(AssistantState.IDLE)
-                    _statusText.postValue("לחץ על הכפתור ודבר")
+                    _statusText.postValue("אמור 'קאי' או לחץ")
+                    resumeWakeWord()
                 }
 
-                // ניקוי קובץ אודיו
                 audioFile.delete()
 
             } catch (e: Exception) {
                 setError("שגיאה: ${e.message}")
+                resumeWakeWord()
             }
         }
+    }
+
+    // ─── Wake Word ───────────────────────────────────────────────────────────
+    private fun resumeWakeWord() {
+        val resumeIntent = Intent(getApplication(), VoiceService::class.java).apply {
+            action = VoiceService.ACTION_RESUME
+        }
+        getApplication<Application>().startService(resumeIntent)
     }
 
     // ─── Utils ───────────────────────────────────────────────────────────────
@@ -136,7 +158,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearError() {
         if (_state.value == AssistantState.ERROR) {
             _state.value = AssistantState.IDLE
-            _statusText.value = "לחץ על הכפתור ודבר"
+            _statusText.value = "אמור 'קאי' או לחץ"
             _errorText.value = null
         }
     }
