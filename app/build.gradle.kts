@@ -13,7 +13,11 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "GROQ_API_KEY", "\"${System.getenv("GROQ_API_KEY") ?: ""}\"")
+        // המפתח נלקח מ-environment variable של GitHub Actions
+        buildConfigField(
+            "String", "GROQ_API_KEY",
+            "\"${System.getenv("GROQ_API_KEY") ?: ""}\""
+        )
     }
 
     buildFeatures {
@@ -36,9 +40,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
