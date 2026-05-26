@@ -2,6 +2,8 @@
 <voice-interaction-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:sessionService="com.groqvoice.assistant.service.KaiSessionService"
+    android:recognitionService="com.groqvoice.assistant.service.KaiSessionService"
     android:supportsAssist="true"
     android:supportsLaunchVoiceAssistFromKeyguard="true"
-    android:supportsLocalInteraction="true"/>
+    android:supportsLocalInteraction="true"
+    android:settingsActivity="com.groqvoice.assistant.ui.MainActivity"/>
