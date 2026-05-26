@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.MANAGE_VOICE_KEYPHRASES"/>
 
     <application
         android:allowBackup="true"
@@ -17,7 +18,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GroqVoiceAssistant">
 
-        <!-- מסך ראשי -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -26,9 +26,14 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- חשוב - מסמן את זה כ-settings של העוזר -->
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_ASSIST"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
         </activity>
 
-        <!-- VoiceInteractionService - מה שהופך את קאי לעוזר ברירת מחדל -->
+        <!-- VoiceInteractionService -->
         <service
             android:name=".service.KaiInteractionService"
             android:exported="true"
@@ -45,7 +50,11 @@
         <service
             android:name=".service.KaiSessionService"
             android:exported="true"
-            android:permission="android.permission.BIND_VOICE_INTERACTION_SERVICE"/>
+            android:permission="android.permission.BIND_VOICE_INTERACTION_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionSessionService"/>
+            </intent-filter>
+        </service>
 
         <!-- Foreground Service -->
         <service
@@ -54,7 +63,7 @@
             android:exported="false"
             android:foregroundServiceType="microphone"/>
 
-        <!-- הפעלה אחרי ריסטרט -->
+        <!-- Boot Receiver -->
         <receiver
             android:name=".service.BootReceiver"
             android:enabled="true"
