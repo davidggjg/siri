@@ -33,6 +33,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Download VOSK Hebrew model
+        run: |
+          mkdir -p app/src/main/assets/vosk-model-small
+          cd app/src/main/assets/vosk-model-small
+          curl -L -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip model.zip
+          mv vosk-model-small-en-us-0.15/* .
+          rm -rf vosk-model-small-en-us-0.15 model.zip
+
       - name: Inject Groq API Key
         run: |
           sed -i 's|YOUR_GROQ_API_KEY_HERE|${{ secrets.GROQ_API_KEY }}|g' app/build.gradle.kts
