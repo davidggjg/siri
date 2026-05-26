@@ -13,11 +13,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        // המפתח נלקח מ-environment variable של GitHub Actions
-        buildConfigField(
-            "String", "GROQ_API_KEY",
-            "\"${System.getenv("GROQ_API_KEY") ?: ""}\""
-        )
+        buildConfigField("String", "GROQ_API_KEY", "\"YOUR_GROQ_API_KEY_HERE\"")
     }
 
     buildFeatures {
