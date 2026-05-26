@@ -27,9 +27,9 @@ class VoiceService : Service() {
         const val NOTIFICATION_ID = 1
         var isRunning = false
 
-        // Actions מה-Activity
         const val ACTION_PAUSE = "pause_wake_word"
         const val ACTION_RESUME = "resume_wake_word"
+        const val ACTION_MANUAL_TRIGGER = "manual_trigger" // לחיצה ארוכה על כפתור הבית
     }
 
     override fun onCreate() {
@@ -52,8 +52,20 @@ class VoiceService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_PAUSE -> wakeWordDetector.pause()
-            ACTION_RESUME -> wakeWordDetector.resume()
+            ACTION_PAUSE -> {
+                wakeWordDetector.pause()
+            }
+            ACTION_RESUME -> {
+                wakeWordDetector.resume()
+            }
+            ACTION_MANUAL_TRIGGER -> {
+                // הופעל ע"י לחיצה ארוכה - מיד להקלטה
+                if (!isProcessing) {
+                    isProcessing = true
+                    updateNotification("💬 קאי שומע...")
+                    ttsManager.speak("כן?") { recordAndProcess() }
+                }
+            }
             else -> {
                 startForeground(NOTIFICATION_ID, buildNotification("🎙 קאי מאזין..."))
                 wakeWordDetector.start()
@@ -65,14 +77,15 @@ class VoiceService : Service() {
     private fun onWakeWordDetected() {
         isProcessing = true
         updateNotification("💬 קאי שומע...")
-        ttsManager.speak("כן?") {
-            recordAndProcess()
-        }
+        ttsManager.speak("כן?") { recordAndProcess() }
     }
 
     private fun recordAndProcess() {
         serviceScope.launch {
             try {
+                // השהה wake word בזמן הקלטה
+                wakeWordDetector.pause()
+
                 val audioFile = audioRecorder.startRecording()
                 delay(5000)
                 audioRecorder.stopRecording()
@@ -83,21 +96,28 @@ class VoiceService : Service() {
                 audioFile.delete()
 
                 if (transcription.isBlank()) {
-                    ttsManager.speak("לא שמעתי, נסה שוב")
-                    finishProcessing()
+                    ttsManager.speak("לא שמעתי, נסה שוב") { finishProcessing() }
                     return@launch
                 }
 
+                // בדוק פקודות
                 val commandResult = commandExecutor.execute(transcription)
                 if (commandResult != "none") {
                     ttsManager.speak(commandResult) { finishProcessing() }
                     return@launch
                 }
 
+                // שאלה רגילה
                 val response = groqClient.chat(
                     transcription,
-                    systemPrompt = "אתה קאי - עוזר קולי חכם. ענה תמיד בעברית, קצר וברור."
+                    systemPrompt = """
+                        אתה קאי - עוזר קולי חכם בעברית.
+                        ענה תמיד בעברית, קצר וברור.
+                        אתה יכול לעזור בכל דבר - שליחת הודעות, שיחות טלפון, 
+                        שאלות, מידע, תכנון ועוד.
+                    """.trimIndent()
                 )
+
                 ttsManager.speak(response) { finishProcessing() }
 
             } catch (e: Exception) {
@@ -150,7 +170,6 @@ class VoiceService : Service() {
         audioRecorder.cleanup()
         ttsManager.shutdown()
         serviceScope.cancel()
-        // הפעל מחדש אוטומטית
         startService(Intent(this, VoiceService::class.java))
     }
 }
