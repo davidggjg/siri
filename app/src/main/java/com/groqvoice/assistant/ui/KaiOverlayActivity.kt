@@ -1,21 +1,19 @@
 package com.groqvoice.assistant.ui
 
 import android.app.Activity
-import android.content.ComponentName
 import android.content.Intent
-import android.content.ServiceConnection
 import android.graphics.Color
 import android.os.Bundle
-import android.os.IBinder
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
 import android.widget.TextView
 import com.groqvoice.assistant.R
 import com.groqvoice.assistant.api.GroqApiClient
 import com.groqvoice.assistant.audio.AudioRecorder
+import com.groqvoice.assistant.commands.CommandExecutor
 import com.groqvoice.assistant.service.VoiceService
 import com.groqvoice.assistant.tts.TtsManager
-import com.groqvoice.assistant.commands.CommandExecutor
 import kotlinx.coroutines.*
 
 class KaiOverlayActivity : Activity() {
@@ -23,6 +21,7 @@ class KaiOverlayActivity : Activity() {
     private lateinit var orbView: KaiOrbView
     private lateinit var tvTranscript: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var btnStop: ImageButton
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var audioRecorder: AudioRecorder
@@ -48,13 +47,20 @@ class KaiOverlayActivity : Activity() {
         orbView = findViewById(R.id.kaiOrb)
         tvTranscript = findViewById(R.id.tvTranscript)
         tvStatus = findViewById(R.id.tvStatus)
+        btnStop = findViewById(R.id.btnStop)
 
         audioRecorder = AudioRecorder(this)
         ttsManager = TtsManager(this)
         groqClient = GroqApiClient()
         commandExecutor = CommandExecutor(this)
 
-        // השהה wake word
+        // כפתור עצור
+        btnStop.setOnClickListener {
+            ttsManager.stop()
+            audioRecorder.cleanup()
+            finish()
+        }
+
         startService(Intent(this, VoiceService::class.java).apply {
             action = VoiceService.ACTION_PAUSE
         })
