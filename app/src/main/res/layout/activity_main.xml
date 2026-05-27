@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
     android:background="#000000">
 
     <TextView
@@ -14,10 +16,7 @@
         android:textColor="#FFFFFF"
         android:textSize="32sp"
         android:textStyle="bold"
-        android:layout_marginTop="80dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:layout_marginBottom="8dp"/>
 
     <TextView
         android:id="@+id/tvSubtitle"
@@ -26,34 +25,23 @@
         android:text="העוזר הקולי שלך"
         android:textColor="#888888"
         android:textSize="16sp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/tvTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:layout_marginBottom="40dp"/>
 
     <com.groqvoice.assistant.ui.KaiOrbView
         android:id="@+id/kaiOrbMain"
         android:layout_width="200dp"
         android:layout_height="200dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVerticalBias="0.45"/>
+        android:layout_marginBottom="32dp"/>
 
     <TextView
         android:id="@+id/tvInstructions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="לחץ לחיצה ארוכה על כפתור ההפעלה\nאו לחץ כאן להפעלה"
+        android:text="לחץ לחיצה ארוכה על כפתור ההפעלה"
         android:textColor="#666666"
         android:textSize="14sp"
         android:gravity="center"
-        android:lineSpacingMultiplier="1.4"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/kaiOrbMain"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:layout_marginBottom="40dp"/>
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/btnActivate"
@@ -62,10 +50,6 @@
         android:text="🎙 דבר עם קאי"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
-        app:backgroundTint="#10A37F"
-        android:layout_marginBottom="60dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:backgroundTint="#10A37F"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>
