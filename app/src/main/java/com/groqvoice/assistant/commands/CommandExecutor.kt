@@ -13,8 +13,9 @@ class CommandExecutor(private val context: Context) {
             lower.contains("התקשר") || lower.contains("תתקשר") -> handleCall(command)
             lower.contains("וואטסאפ") || lower.contains("whatsapp") -> handleWhatsApp(command)
             lower.contains("אימייל") || lower.contains("מייל") || lower.contains("email") -> handleEmail(command)
+            lower.contains("נגן") || lower.contains("שיר") || lower.contains("מוזיקה") -> handleMusic(command)
             lower.contains("פתח") || lower.contains("הפעל") -> handleOpenApp(command)
-            lower.contains("נגן") || lower.contains("שמע") || lower.contains("מוזיקה") -> handleMusic(command)
+            lower.contains("יוטיוב") || lower.contains("youtube") -> handleYouTube(command)
             else -> "none"
         }
     }
@@ -22,20 +23,18 @@ class CommandExecutor(private val context: Context) {
     private fun handleCall(command: String): String {
         val number = extractPhoneNumber(command)
         if (number != null) {
-            val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")).apply {
+            context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
+            })
             return "מתקשר"
         }
         val name = extractName(command, listOf("התקשר", "תתקשר", "ל", "אל"))
         if (name != null) {
             val phone = findContactNumber(name)
             if (phone != null) {
-                val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
+                context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
+                })
                 return "מתקשר ל$name"
             }
         }
@@ -49,41 +48,50 @@ class CommandExecutor(private val context: Context) {
             val phone = findContactNumber(name)
             if (phone != null) {
                 val clean = phone.replace("[^0-9+]".toRegex(), "")
-                val intent = Intent(Intent.ACTION_VIEW).apply {
+                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
                     data = Uri.parse("https://wa.me/$clean?text=${Uri.encode(message ?: "")}")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
+                })
                 return "פותח וואטסאפ עם $name"
             }
         }
-        return "לא מצאתי את האיש בר"
+        return "לא מצאתי את האיש ברשימת אנשי הקשר"
     }
 
     private fun handleEmail(command: String): String {
-        val message = extractMessage(command)
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
+        context.startActivity(Intent(Intent.ACTION_SENDTO).apply {
             data = Uri.parse("mailto:")
-            putExtra(Intent.EXTRA_TEXT, message ?: "")
+            putExtra(Intent.EXTRA_TEXT, extractMessage(command) ?: "")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
+        })
         return "פותח אפליקציית מייל"
     }
 
     private fun handleMusic(command: String): String {
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_APP_MUSIC)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        try { context.startActivity(intent) } catch (e: Exception) {
-            val spotify = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-            if (spotify != null) {
-                spotify.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                context.startActivity(spotify)
+        // חיפוש שיר ספציפי ב-YouTube
+        val query = extractMusicQuery(command)
+        return handleYouTubeSearch(query ?: "מוזיקה")
+    }
+
+    private fun handleYouTube(command: String): String {
+        val query = extractMusicQuery(command) ?: extractName(command, listOf("יוטיוב", "youtube", "פתח", "הפעל", "חפש"))
+        return handleYouTubeSearch(query ?: "")
+    }
+
+    private fun handleYouTubeSearch(query: String): String {
+        val intent = if (query.isNotBlank()) {
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        } else {
+            context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")?.apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            } ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
         }
-        return "פותח מוזיקה"
+        context.startActivity(intent)
+        return if (query.isNotBlank()) "מחפש $query ביוטיוב" else "פותח יוטיוב"
     }
 
     private fun handleOpenApp(command: String): String {
@@ -95,7 +103,6 @@ class CommandExecutor(private val context: Context) {
             "טלגרם" to "org.telegram.messenger",
             "וואטסאפ" to "com.whatsapp",
             "אינסטגרם" to "com.instagram.android",
-            "פייסבוק" to "com.facebook.katana",
             "כרום" to "com.android.chrome",
             "מצלמה" to "com.sec.android.app.camera"
         )
@@ -142,5 +149,13 @@ class CommandExecutor(private val context: Context) {
             if (idx != -1) return text.substring(idx + keyword.length).trim()
         }
         return null
+    }
+
+    private fun extractMusicQuery(text: String): String? {
+        val removeWords = listOf("נגן", "שמע", "תנגן", "תשמיע", "הפעל", "מוזיקה", "שיר", "את", "של", "לי")
+        var result = text
+        for (word in removeWords) result = result.replace(word, " ", ignoreCase = true)
+        result = result.trim()
+        return if (result.isNotEmpty()) result else null
     }
 }
