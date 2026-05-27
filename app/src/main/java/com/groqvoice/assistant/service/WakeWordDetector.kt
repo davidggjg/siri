@@ -2,6 +2,8 @@ package com.groqvoice.assistant.service
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -17,6 +19,27 @@ class WakeWordDetector(
     private var recognizer: SpeechRecognizer? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val wakeWords = listOf("קאי", "kai", "היי קאי", "hey kai", "כאי", "קיי")
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    // AudioFocus - משחרר מיק כשאפליקציה אחרת צריכה אותו
+    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        .setOnAudioFocusChangeListener { focusChange ->
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    // אפליקציה אחרת צריכה מיק - עצור מיד
+                    stopListening()
+                    scope.launch {
+                        delay(3000)
+                        if (isRunning && !isPaused) listen()
+                    }
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    if (isRunning && !isPaused) listen()
+                }
+            }
+        }
+        .build()
 
     fun start() {
         isRunning = true
@@ -25,6 +48,18 @@ class WakeWordDetector(
 
     private fun listen() {
         if (!isRunning || isPaused) return
+
+        // בקש AudioFocus - אם מישהו כבר מחזיק מיק, לא תתחיל
+        val result = audioManager.requestAudioFocus(focusRequest)
+        if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            // מישהו אחר מחזיק מיק - נסה שוב אחר כך
+            scope.launch {
+                delay(2000)
+                if (isRunning && !isPaused) listen()
+            }
+            return
+        }
+
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer?.setRecognitionListener(object : RecognitionListener {
@@ -32,6 +67,10 @@ class WakeWordDetector(
                 val heard = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()?.lowercase() ?: ""
+
+                // שחרר AudioFocus מיד אחרי שמיעה
+                audioManager.abandonAudioFocusRequest(focusRequest)
+
                 if (wakeWords.any { heard.contains(it) }) {
                     recognizer?.destroy()
                     recognizer = null
@@ -47,12 +86,15 @@ class WakeWordDetector(
                     }
                 }
             }
+
             override fun onError(error: Int) {
+                audioManager.abandonAudioFocusRequest(focusRequest)
                 scope.launch {
                     delay(800)
                     if (isRunning && !isPaused) listen()
                 }
             }
+
             override fun onReadyForSpeech(p: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(v: Float) {}
@@ -71,10 +113,15 @@ class WakeWordDetector(
         recognizer?.startListening(intent)
     }
 
-    fun pause() {
-        isPaused = true
+    private fun stopListening() {
+        audioManager.abandonAudioFocusRequest(focusRequest)
         recognizer?.destroy()
         recognizer = null
+    }
+
+    fun pause() {
+        isPaused = true
+        stopListening()
     }
 
     fun resume() {
@@ -87,8 +134,7 @@ class WakeWordDetector(
 
     fun stop() {
         isRunning = false
-        recognizer?.destroy()
-        recognizer = null
+        stopListening()
         scope.cancel()
     }
 }
