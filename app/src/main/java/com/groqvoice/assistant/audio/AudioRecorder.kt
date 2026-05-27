@@ -11,15 +11,10 @@ class AudioRecorder(private val context: Context) {
     private var outputFile: File? = null
 
     fun startRecording(): File {
-        val file = File(context.cacheDir, "recording_${System.currentTimeMillis()}.m4a")
+        val file = File(context.cacheDir, "rec_${System.currentTimeMillis()}.m4a")
         outputFile = file
-
-        recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(context)
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
-        }.apply {
+        recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()).apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -29,16 +24,13 @@ class AudioRecorder(private val context: Context) {
             prepare()
             start()
         }
-
         return file
     }
 
     fun stopRecording(): File? {
         return try {
-            recorder?.apply {
-                stop()
-                release()
-            }
+            recorder?.stop()
+            recorder?.release()
             recorder = null
             outputFile
         } catch (e: Exception) {
@@ -46,8 +38,6 @@ class AudioRecorder(private val context: Context) {
             null
         }
     }
-
-    fun isRecording(): Boolean = recorder != null
 
     fun cleanup() {
         recorder?.release()

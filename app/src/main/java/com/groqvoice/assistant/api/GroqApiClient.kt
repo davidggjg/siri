@@ -21,16 +21,12 @@ class GroqApiClient {
 
     private val apiKey = BuildConfig.GROQ_API_KEY
 
-    // ─── STT: שליחת קובץ אודיו ל-Whisper ───────────────────────────────────
     @Throws(IOException::class)
     fun transcribeAudio(audioFile: File): String {
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart(
-                "file",
-                audioFile.name,
-                audioFile.asRequestBody("audio/m4a".toMediaType())
-            )
+            .addFormDataPart("file", audioFile.name,
+                audioFile.asRequestBody("audio/m4a".toMediaType()))
             .addFormDataPart("model", "whisper-large-v3")
             .addFormDataPart("language", "he")
             .addFormDataPart("response_format", "json")
@@ -43,66 +39,51 @@ class GroqApiClient {
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
+            if (!response.isSuccessful)
                 throw IOException("Groq STT Error: ${response.code} - ${response.body?.string()}")
-            }
-            val json = JSONObject(response.body!!.string())
-            return json.getString("text")
+            return JSONObject(response.body!!.string()).getString("text")
         }
     }
 
-    // ─── LLM: שליחת הטקסט ל-LLaMA ──────────────────────────────────────────
     @Throws(IOException::class)
     fun chat(
         userMessage: String,
         conversationHistory: List<Pair<String, String>> = emptyList(),
-        systemPrompt: String = "אתה עוזר קולי חכם ומועיל. ענה בקצרה ובבהירות."
+        systemPrompt: String = "אתה קאי - עוזר קולי חכם. ענה תמיד בעברית, קצר וברור."
     ): String {
-        val messagesArray = JSONArray()
-
-        // System message
-        messagesArray.put(JSONObject().apply {
+        val messages = JSONArray()
+        messages.put(JSONObject().apply {
             put("role", "system")
             put("content", systemPrompt)
         })
-
-        // History
         for ((role, content) in conversationHistory) {
-            messagesArray.put(JSONObject().apply {
+            messages.put(JSONObject().apply {
                 put("role", role)
                 put("content", content)
             })
         }
-
-        // Current message
-        messagesArray.put(JSONObject().apply {
+        messages.put(JSONObject().apply {
             put("role", "user")
             put("content", userMessage)
         })
 
         val body = JSONObject().apply {
             put("model", "llama-3.3-70b-versatile")
-            put("messages", messagesArray)
+            put("messages", messages)
             put("temperature", 0.7)
             put("max_tokens", 1024)
-        }
-
-        val requestBody = body.toString()
-            .toRequestBody("application/json".toMediaType())
+        }.toString().toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
             .url("https://api.groq.com/openai/v1/chat/completions")
             .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .post(requestBody)
+            .post(body)
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
+            if (!response.isSuccessful)
                 throw IOException("Groq LLM Error: ${response.code} - ${response.body?.string()}")
-            }
-            val json = JSONObject(response.body!!.string())
-            return json
+            return JSONObject(response.body!!.string())
                 .getJSONArray("choices")
                 .getJSONObject(0)
                 .getJSONObject("message")

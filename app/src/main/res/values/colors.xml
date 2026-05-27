@@ -2,12 +2,6 @@
 <resources>
     <color name="primary">#10A37F</color>
     <color name="primary_dark">#0D8A6D</color>
-    <color name="accent">#10A37F</color>
-    <color name="background">#0A0A0A</color>
-    <color name="surface">#1A1A1A</color>
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#888888</color>
+    <color name="background">#000000</color>
     <color name="white">#FFFFFF</color>
-    <color name="message_user">#10A37F</color>
-    <color name="message_assistant">#2A2A2A</color>
 </resources>

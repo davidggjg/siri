@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.GroqVoiceAssistant" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.Kai" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">#10A37F</item>
         <item name="colorPrimaryDark">#0D8A6D</item>
         <item name="colorAccent">#10A37F</item>
-        <item name="android:statusBarColor">#0A0A0A</item>
-        <item name="android:navigationBarColor">#0A0A0A</item>
-        <item name="android:windowBackground">#0A0A0A</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowBackground">#000000</item>
+    </style>
+
+    <style name="Theme.KaiOverlay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.85</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

@@ -14,10 +14,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "GROQ_API_KEY", "\"YOUR_GROQ_API_KEY_HERE\"")
-
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     buildFeatures {
@@ -26,18 +23,13 @@ android {
     }
 
     sourceSets {
-        getByName("main") {
-            assets.srcDirs("src/main/assets")
-        }
+        getByName("main") { assets.srcDirs("src/main/assets") }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -60,7 +52,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
     implementation("androidx.activity:activity-ktx:1.8.2")
-
-    // VOSK - wake word offline
     implementation("com.alphacephei:vosk-android:0.3.75")
 }

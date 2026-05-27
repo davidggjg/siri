@@ -14,42 +14,28 @@ class TtsManager(context: Context) {
     init {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                // נסה עברית, אם לא זמין - אנגלית
-                val hebrewLocale = Locale("he", "IL")
-                val result = tts?.setLanguage(hebrewLocale)
-                if (result == TextToSpeech.LANG_MISSING_DATA ||
-                    result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                val he = Locale("he", "IL")
+                val result = tts?.setLanguage(he)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED)
                     tts?.language = Locale.ENGLISH
-                }
                 isReady = true
-                setupListener()
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) {}
+                    override fun onDone(id: String?) { onDoneCallback?.invoke() }
+                    override fun onError(id: String?) { onDoneCallback?.invoke() }
+                })
             }
         }
     }
 
-    private fun setupListener() {
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                onDoneCallback?.invoke()
-            }
-            override fun onError(utteranceId: String?) {
-                onDoneCallback?.invoke()
-            }
-        })
-    }
-
     fun speak(text: String, onDone: (() -> Unit)? = null) {
-        if (!isReady) return
+        if (!isReady) { onDone?.invoke(); return }
         onDoneCallback = onDone
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "utterance_${System.currentTimeMillis()}")
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "utt_${System.currentTimeMillis()}")
     }
 
-    fun stop() {
-        tts?.stop()
-    }
-
-    fun isSpeaking(): Boolean = tts?.isSpeaking == true
+    fun stop() { tts?.stop() }
+    fun isSpeaking() = tts?.isSpeaking == true
 
     fun shutdown() {
         tts?.stop()

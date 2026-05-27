@@ -1,10 +1,11 @@
 package com.groqvoice.assistant.service
 
 import android.content.Context
-import android.media.AudioManager
-import android.os.Bundle
-import android.speech.*
 import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import kotlinx.coroutines.*
 
 class WakeWordDetector(
@@ -12,76 +13,46 @@ class WakeWordDetector(
     private val onDetected: () -> Unit
 ) {
     private var isRunning = false
-    private var isPaused = false  // מושהה כשאפליקציה אחרת צריכה מיק
+    private var isPaused = false
     private var recognizer: SpeechRecognizer? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
-    private val wakeWords = listOf("קאי", "kai", "היי קאי", "hey kai", "כאי")
-
-    // AudioFocus - מאזין מתי אפליקציה אחרת צריכה את המיק
-    private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                // אפליקציה אחרת צריכה מיק - עצור האזנה
-                isPaused = true
-                stopListening()
-            }
-            AudioManager.AUDIOFOCUS_GAIN -> {
-                // חזרנו - המשך האזנה
-                if (isRunning) {
-                    isPaused = false
-                    scope.launch {
-                        delay(500)
-                        startListening()
-                    }
-                }
-            }
-        }
-    }
+    private val wakeWords = listOf("קאי", "kai", "היי קאי", "hey kai", "כאי", "קיי")
 
     fun start() {
         isRunning = true
-        startListening()
+        listen()
     }
 
-    private fun startListening() {
+    private fun listen() {
         if (!isRunning || isPaused) return
-
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
-                val matches = results
+                val heard = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val heard = matches?.firstOrNull()?.lowercase() ?: ""
-
+                    ?.firstOrNull()?.lowercase() ?: ""
                 if (wakeWords.any { heard.contains(it) }) {
-                    // זוהה wake word - שחרר מיק לפני שמתחיל לעבד
-                    stopListening()
+                    recognizer?.destroy()
+                    recognizer = null
                     onDetected()
-                    // חזור להאזין אחרי שסיים לדבר
                     scope.launch {
                         delay(7000)
-                        if (isRunning && !isPaused) startListening()
+                        if (isRunning && !isPaused) listen()
                     }
                 } else {
-                    // המשך להאזין
                     scope.launch {
-                        delay(200)
-                        if (isRunning && !isPaused) startListening()
+                        delay(300)
+                        if (isRunning && !isPaused) listen()
                     }
                 }
             }
-
             override fun onError(error: Int) {
                 scope.launch {
-                    delay(500)
-                    if (isRunning && !isPaused) startListening()
+                    delay(800)
+                    if (isRunning && !isPaused) listen()
                 }
             }
-
             override fun onReadyForSpeech(p: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(v: Float) {}
@@ -92,35 +63,32 @@ class WakeWordDetector(
         })
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
         }
-
         recognizer?.startListening(intent)
     }
 
-    private fun stopListening() {
+    fun pause() {
+        isPaused = true
         recognizer?.destroy()
         recognizer = null
     }
 
-    // קרא לזה כשרוצים להשהות ידנית (למשל הקלטה ידנית בתוך האפליקציה)
-    fun pause() {
-        isPaused = true
-        stopListening()
-    }
-
     fun resume() {
         isPaused = false
-        if (isRunning) startListening()
+        if (isRunning) scope.launch {
+            delay(500)
+            listen()
+        }
     }
 
     fun stop() {
         isRunning = false
-        stopListening()
+        recognizer?.destroy()
+        recognizer = null
         scope.cancel()
     }
 }

@@ -12,6 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-
-rootProject.name = "GroqVoiceAssistant"
+rootProject.name = "Kai"
 include(":app")
