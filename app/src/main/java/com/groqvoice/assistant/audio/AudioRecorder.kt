@@ -1,19 +1,21 @@
 package com.groqvoice.assistant.audio
 
 import android.content.Context
+import android.media.AudioFormat
+import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import java.io.File
 
 class AudioRecorder(private val context: Context) {
 
-    private var recorder: MediaRecorder? = null
+    private var mediaRecorder: MediaRecorder? = null
     private var outputFile: File? = null
 
     fun startRecording(): File {
         val file = File(context.cacheDir, "rec_${System.currentTimeMillis()}.m4a")
         outputFile = file
-        recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        mediaRecorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()).apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -29,18 +31,21 @@ class AudioRecorder(private val context: Context) {
 
     fun stopRecording(): File? {
         return try {
-            recorder?.stop()
-            recorder?.release()
-            recorder = null
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
             outputFile
         } catch (e: Exception) {
-            recorder = null
+            mediaRecorder = null
             null
         }
     }
 
+    fun isRecording() = mediaRecorder != null
+
     fun cleanup() {
-        recorder?.release()
-        recorder = null
+        try { mediaRecorder?.stop() } catch (_: Exception) {}
+        mediaRecorder?.release()
+        mediaRecorder = null
     }
 }

@@ -9,47 +9,42 @@
     android:background="#000000">
 
     <TextView
-        android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="קאי"
         android:textColor="#FFFFFF"
-        android:textSize="32sp"
+        android:textSize="36sp"
         android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="6dp"/>
 
     <TextView
-        android:id="@+id/tvSubtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="העוזר הקולי שלך"
-        android:textColor="#888888"
-        android:textSize="16sp"
-        android:layout_marginBottom="40dp"/>
+        android:textColor="#666666"
+        android:textSize="15sp"
+        android:layout_marginBottom="48dp"/>
 
     <com.groqvoice.assistant.ui.KaiOrbView
-        android:id="@+id/kaiOrbMain"
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:layout_marginBottom="32dp"/>
-
-    <TextView
-        android:id="@+id/tvInstructions"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="לחץ לחיצה ארוכה על כפתור ההפעלה"
-        android:textColor="#666666"
-        android:textSize="14sp"
-        android:gravity="center"
-        android:layout_marginBottom="40dp"/>
+        android:layout_width="180dp"
+        android:layout_height="180dp"
+        android:layout_marginBottom="48dp"/>
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/btnActivate"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="🎙 דבר עם קאי"
+        android:text="🎙  דבר עם קאי"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="17sp"
         app:backgroundTint="#10A37F"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="או לחץ לחיצה ארוכה על כפתור ההפעלה"
+        android:textColor="#444444"
+        android:textSize="12sp"
+        android:layout_marginTop="20dp"/>
 
 </LinearLayout>

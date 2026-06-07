@@ -3,7 +3,10 @@ package com.groqvoice.assistant.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -31,6 +34,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestPermsAndStart()
+        requestBatteryOptimization()
     }
 
     private fun requestPermsAndStart() {
@@ -40,14 +44,24 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.CALL_PHONE
         ).filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
 
-        if (needed.isEmpty()) startKai()
-        else permLauncher.launch(needed.toTypedArray())
+        if (needed.isEmpty()) startKai() else permLauncher.launch(needed.toTypedArray())
     }
 
     private fun startKai() {
         if (!VoiceService.isRunning) {
             ContextCompat.startForegroundService(this, Intent(this, VoiceService::class.java))
             Toast.makeText(this, "🎙 קאי פועל ברקע", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestBatteryOptimization() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                })
+            } catch (_: Exception) {}
         }
     }
 }

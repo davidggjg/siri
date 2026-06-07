@@ -1,2 +1,3 @@
 -keep class com.groqvoice.assistant.** { *; }
 -dontwarn okhttp3.**
+-keep class androidx.room.** { *; }

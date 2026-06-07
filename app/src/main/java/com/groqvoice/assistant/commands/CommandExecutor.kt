@@ -7,124 +7,130 @@ import android.provider.ContactsContract
 
 class CommandExecutor(private val context: Context) {
 
+    data class CommandResult(
+        val handled: Boolean,
+        val response: String = "none"
+    )
+
     fun execute(command: String): String {
-        val lower = command.lowercase()
+        val lower = command.lowercase().trim()
         return when {
-            lower.contains("התקשר") || lower.contains("תתקשר") -> handleCall(command)
-            lower.contains("וואטסאפ") || lower.contains("whatsapp") -> handleWhatsApp(command)
-            lower.contains("אימייל") || lower.contains("מייל") || lower.contains("email") -> handleEmail(command)
-            lower.contains("נגן") || lower.contains("שיר") || lower.contains("מוזיקה") -> handleMusic(command)
-            lower.contains("פתח") || lower.contains("הפעל") -> handleOpenApp(command)
-            lower.contains("יוטיוב") || lower.contains("youtube") -> handleYouTube(command)
+            matchesCall(lower) -> handleCall(command, lower)
+            matchesWhatsApp(lower) -> handleWhatsApp(command, lower)
+            matchesEmail(lower) -> handleEmail(command)
+            matchesMusic(lower) -> handleMusic(command, lower)
+            matchesYouTube(lower) -> handleYouTubeSearch(extractQuery(command, listOf("יוטיוב","youtube","חפש","הפעל")))
+            matchesOpenApp(lower) -> handleOpenApp(lower)
             else -> "none"
         }
     }
 
-    private fun handleCall(command: String): String {
-        val number = extractPhoneNumber(command)
-        if (number != null) {
-            context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            })
+    private fun matchesCall(t: String) = t.contains("התקשר") || t.contains("תתקשר") || t.contains("תתקשרי") || t.contains("call")
+    private fun matchesWhatsApp(t: String) = (t.contains("שלח") || t.contains("שלחי")) && (t.contains("וואטסאפ") || t.contains("whatsapp") || t.contains("הודעה"))
+    private fun matchesEmail(t: String) = t.contains("אימייל") || t.contains("מייל") || t.contains("email")
+    private fun matchesMusic(t: String) = t.contains("נגן") || t.contains("תנגן") || (t.contains("שיר") && !t.contains("?")) || t.contains("מוזיקה")
+    private fun matchesYouTube(t: String) = t.contains("יוטיוב") || t.contains("youtube")
+    private fun matchesOpenApp(t: String) = (t.contains("פתח") || t.contains("הפעל")) && appKeywords.any { t.contains(it.key) }
+
+    private val appKeywords = mapOf(
+        "יוטיוב" to "com.google.android.youtube",
+        "ספוטיפיי" to "com.spotify.music",
+        "מפות" to "com.google.android.apps.maps",
+        "גוגל" to "com.google.android.googlequicksearchbox",
+        "טלגרם" to "org.telegram.messenger",
+        "וואטסאפ" to "com.whatsapp",
+        "אינסטגרם" to "com.instagram.android",
+        "כרום" to "com.android.chrome",
+        "מצלמה" to "com.sec.android.app.camera",
+        "netflix" to "com.netflix.mediaclient",
+        "נטפליקס" to "com.netflix.mediaclient"
+    )
+
+    private fun handleCall(command: String, lower: String): String {
+        val phone = extractPhoneNumber(command)
+        if (phone != null) {
+            dial(phone)
             return "מתקשר"
         }
-        val name = extractName(command, listOf("התקשר", "תתקשר", "ל", "אל"))
+        val name = extractPersonName(lower, listOf("התקשר","תתקשר","ל","אל","תתקשרי"))
         if (name != null) {
-            val phone = findContactNumber(name)
-            if (phone != null) {
-                context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                })
-                return "מתקשר ל$name"
-            }
+            val num = findContact(name)
+            if (num != null) { dial(num); return "מתקשר ל$name" }
+            return "לא מצאתי $name באנשי הקשר"
         }
-        return "לא מצאתי את המספר"
+        return "למי להתקשר?"
     }
 
-    private fun handleWhatsApp(command: String): String {
-        val name = extractName(command, listOf("שלח", "הודעה", "ב", "וואטסאפ", "ל"))
-        val message = extractMessage(command)
+    private fun handleWhatsApp(command: String, lower: String): String {
+        val name = extractPersonName(lower, listOf("שלח","שלחי","הודעה","ב","וואטסאפ","ל","whatsapp"))
+        val msg = extractAfterKeyword(command, listOf("שכותבת","שכתוב","תכתוב","כתוב","תגיד","שאומרת")) ?: ""
         if (name != null) {
-            val phone = findContactNumber(name)
-            if (phone != null) {
-                val clean = phone.replace("[^0-9+]".toRegex(), "")
-                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                    data = Uri.parse("https://wa.me/$clean?text=${Uri.encode(message ?: "")}")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val num = findContact(name)
+            if (num != null) {
+                val clean = num.replace("[^0-9+]".toRegex(), "")
+                startActivity(Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("https://wa.me/$clean?text=${Uri.encode(msg)}")
                 })
                 return "פותח וואטסאפ עם $name"
             }
+            return "לא מצאתי $name באנשי הקשר"
         }
-        return "לא מצאתי את האיש ברשימת אנשי הקשר"
+        return "למי לשלוח?"
     }
 
     private fun handleEmail(command: String): String {
-        context.startActivity(Intent(Intent.ACTION_SENDTO).apply {
+        val msg = extractAfterKeyword(command, listOf("תגיד","כתוב","שכתוב")) ?: ""
+        startActivity(Intent(Intent.ACTION_SENDTO).apply {
             data = Uri.parse("mailto:")
-            putExtra(Intent.EXTRA_TEXT, extractMessage(command) ?: "")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra(Intent.EXTRA_TEXT, msg)
         })
-        return "פותח אפליקציית מייל"
+        return "פותח מייל"
     }
 
-    private fun handleMusic(command: String): String {
-        // חיפוש שיר ספציפי ב-YouTube
-        val query = extractMusicQuery(command)
-        return handleYouTubeSearch(query ?: "מוזיקה")
-    }
-
-    private fun handleYouTube(command: String): String {
-        val query = extractMusicQuery(command) ?: extractName(command, listOf("יוטיוב", "youtube", "פתח", "הפעל", "חפש"))
-        return handleYouTubeSearch(query ?: "")
+    private fun handleMusic(command: String, lower: String): String {
+        val query = extractQuery(command, listOf("נגן","תנגן","שיר","מוזיקה","שמע","תשמיע"))
+        // נסה Spotify קודם
+        val spotify = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+        if (spotify != null && query.isBlank()) {
+            startActivity(spotify)
+            return "פותח ספוטיפיי"
+        }
+        // חפש ב-YouTube
+        return handleYouTubeSearch(query)
     }
 
     private fun handleYouTubeSearch(query: String): String {
-        val intent = if (query.isNotBlank()) {
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-        } else {
-            context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")?.apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            } ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-        }
-        context.startActivity(intent)
+        val uri = if (query.isNotBlank())
+            Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")
+        else
+            Uri.parse("https://www.youtube.com")
+        startActivity(Intent(Intent.ACTION_VIEW, uri))
         return if (query.isNotBlank()) "מחפש $query ביוטיוב" else "פותח יוטיוב"
     }
 
-    private fun handleOpenApp(command: String): String {
-        val appMap = mapOf(
-            "יוטיוב" to "com.google.android.youtube",
-            "גוגל" to "com.google.android.googlequicksearchbox",
-            "מפות" to "com.google.android.apps.maps",
-            "ספוטיפיי" to "com.spotify.music",
-            "טלגרם" to "org.telegram.messenger",
-            "וואטסאפ" to "com.whatsapp",
-            "אינסטגרם" to "com.instagram.android",
-            "כרום" to "com.android.chrome",
-            "מצלמה" to "com.sec.android.app.camera"
-        )
-        for ((keyword, pkg) in appMap) {
-            if (command.lowercase().contains(keyword)) {
-                val intent = context.packageManager.getLaunchIntentForPackage(pkg)?.apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                if (intent != null) {
-                    context.startActivity(intent)
-                    return "פותח $keyword"
-                }
+    private fun handleOpenApp(lower: String): String {
+        for ((keyword, pkg) in appKeywords) {
+            if (lower.contains(keyword)) {
+                val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+                if (intent != null) { startActivity(intent); return "פותח $keyword" }
             }
         }
         return "none"
     }
 
-    private fun findContactNumber(name: String): String? {
+    private fun dial(number: String) {
+        startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
+    }
+
+    private fun startActivity(intent: Intent) {
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        context.startActivity(intent)
+    }
+
+    private fun findContact(name: String): String? {
         val cursor = context.contentResolver.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER,
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME),
+            arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
             "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
             arrayOf("%$name%"), null
         )
@@ -132,30 +138,27 @@ class CommandExecutor(private val context: Context) {
         return null
     }
 
-    private fun extractPhoneNumber(text: String): String? =
+    private fun extractPhoneNumber(text: String) =
         Regex("[0-9+][0-9\\-]{7,14}").find(text)?.value
 
-    private fun extractName(text: String, removeWords: List<String>): String? {
-        var result = text
-        for (word in removeWords) result = result.replace(word, "", ignoreCase = true)
-        result = result.trim()
-        return if (result.isNotEmpty()) result else null
+    private fun extractPersonName(text: String, removeWords: List<String>): String? {
+        var r = text
+        for (w in removeWords) r = r.replace(w, " ", ignoreCase = true)
+        r = r.replace(Regex("\\s+"), " ").trim()
+        return if (r.length > 1) r else null
     }
 
-    private fun extractMessage(text: String): String? {
-        val keywords = listOf("תגיד", "כתוב", "שכתוב", "תכתוב")
-        for (keyword in keywords) {
-            val idx = text.indexOf(keyword, ignoreCase = true)
-            if (idx != -1) return text.substring(idx + keyword.length).trim()
+    private fun extractAfterKeyword(text: String, keywords: List<String>): String? {
+        for (k in keywords) {
+            val idx = text.indexOf(k, ignoreCase = true)
+            if (idx != -1) return text.substring(idx + k.length).trim()
         }
         return null
     }
 
-    private fun extractMusicQuery(text: String): String? {
-        val removeWords = listOf("נגן", "שמע", "תנגן", "תשמיע", "הפעל", "מוזיקה", "שיר", "את", "של", "לי")
-        var result = text
-        for (word in removeWords) result = result.replace(word, " ", ignoreCase = true)
-        result = result.trim()
-        return if (result.isNotEmpty()) result else null
+    private fun extractQuery(text: String, removeWords: List<String>): String {
+        var r = text
+        for (w in removeWords) r = r.replace(w, " ", ignoreCase = true)
+        return r.replace(Regex("\\s+"), " ").trim()
     }
 }

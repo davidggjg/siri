@@ -5,9 +5,7 @@ import android.content.Intent
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.speech.*
 import kotlinx.coroutines.*
 
 class WakeWordDetector(
@@ -18,24 +16,27 @@ class WakeWordDetector(
     private var isPaused = false
     private var recognizer: SpeechRecognizer? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val wakeWords = listOf("קאי", "kai", "היי קאי", "hey kai", "כאי", "קיי")
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val wakeWords = listOf("קאי", "kai", "היי קאי", "hey kai", "כאי", "קיי", "כי")
 
-    // AudioFocus - משחרר מיק כשאפליקציה אחרת צריכה אותו
-    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-        .setOnAudioFocusChangeListener { focusChange ->
-            when (focusChange) {
+    // AudioFocus - משחרר מיק לאפליקציות אחרות מיד
+    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        .setOnAudioFocusChangeListener { change ->
+            when (change) {
                 AudioManager.AUDIOFOCUS_LOSS,
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                    // אפליקציה אחרת צריכה מיק - עצור מיד
-                    stopListening()
+                    // אפליקציה אחרת צריכה מיק - עצור מיד ושחרר
+                    releaseRecognizer()
                     scope.launch {
-                        delay(3000)
-                        if (isRunning && !isPaused) listen()
+                        delay(4000) // המתן שהאפליקציה האחרת תשחרר
+                        if (isRunning && !isPaused) startListen()
                     }
                 }
                 AudioManager.AUDIOFOCUS_GAIN -> {
-                    if (isRunning && !isPaused) listen()
+                    if (isRunning && !isPaused) scope.launch {
+                        delay(500)
+                        startListen()
+                    }
                 }
             }
         }
@@ -43,46 +44,46 @@ class WakeWordDetector(
 
     fun start() {
         isRunning = true
-        listen()
+        startListen()
     }
 
-    private fun listen() {
+    private fun startListen() {
         if (!isRunning || isPaused) return
 
-        // בקש AudioFocus - אם מישהו כבר מחזיק מיק, לא תתחיל
+        // בדוק אם יש AudioFocus זמין
         val result = audioManager.requestAudioFocus(focusRequest)
         if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            // מישהו אחר מחזיק מיק - נסה שוב אחר כך
+            // מישהו אחר מחזיק - נסה שוב
             scope.launch {
-                delay(2000)
-                if (isRunning && !isPaused) listen()
+                delay(3000)
+                if (isRunning && !isPaused) startListen()
             }
             return
         }
 
-        recognizer?.destroy()
+        releaseRecognizer()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
+                // שחרר AudioFocus מיד!
+                audioManager.abandonAudioFocusRequest(focusRequest)
+
                 val heard = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()?.lowercase() ?: ""
 
-                // שחרר AudioFocus מיד אחרי שמיעה
-                audioManager.abandonAudioFocusRequest(focusRequest)
-
                 if (wakeWords.any { heard.contains(it) }) {
-                    recognizer?.destroy()
-                    recognizer = null
+                    releaseRecognizer()
                     onDetected()
+                    // חזור להאזנה אחרי שקאי סיים לדבר
                     scope.launch {
-                        delay(7000)
-                        if (isRunning && !isPaused) listen()
+                        delay(8000)
+                        if (isRunning && !isPaused) startListen()
                     }
                 } else {
                     scope.launch {
-                        delay(300)
-                        if (isRunning && !isPaused) listen()
+                        delay(200)
+                        if (isRunning && !isPaused) startListen()
                     }
                 }
             }
@@ -90,8 +91,9 @@ class WakeWordDetector(
             override fun onError(error: Int) {
                 audioManager.abandonAudioFocusRequest(focusRequest)
                 scope.launch {
-                    delay(800)
-                    if (isRunning && !isPaused) listen()
+                    val delay = if (error == SpeechRecognizer.ERROR_NO_MATCH) 200L else 1000L
+                    delay(delay)
+                    if (isRunning && !isPaused) startListen()
                 }
             }
 
@@ -109,32 +111,34 @@ class WakeWordDetector(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
         }
         recognizer?.startListening(intent)
     }
 
-    private fun stopListening() {
-        audioManager.abandonAudioFocusRequest(focusRequest)
+    private fun releaseRecognizer() {
         recognizer?.destroy()
         recognizer = null
     }
 
     fun pause() {
         isPaused = true
-        stopListening()
+        audioManager.abandonAudioFocusRequest(focusRequest)
+        releaseRecognizer()
     }
 
     fun resume() {
         isPaused = false
-        if (isRunning) scope.launch {
+        scope.launch {
             delay(500)
-            listen()
+            if (isRunning) startListen()
         }
     }
 
     fun stop() {
         isRunning = false
-        stopListening()
+        audioManager.abandonAudioFocusRequest(focusRequest)
+        releaseRecognizer()
         scope.cancel()
     }
 }
