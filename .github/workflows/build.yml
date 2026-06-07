@@ -16,6 +16,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Remove duplicate service files
+        run: |
+          rm -f app/src/main/java/com/groqvoice/assistant/service/BootReceiver.kt
+          rm -f app/src/main/java/com/groqvoice/assistant/service/KaiInteractionService.kt
+          rm -f app/src/main/java/com/groqvoice/assistant/service/KaiSessionService.kt
+          echo "Remaining service files:"
+          ls app/src/main/java/com/groqvoice/assistant/service/
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -41,7 +49,7 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.connectTimeout=60000 -Dorg.gradle.internal.http.connectionTimeout=60000"
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
